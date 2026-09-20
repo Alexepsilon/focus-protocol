@@ -1,5 +1,5 @@
 // Focus Protocol service worker: network-first, cache fallback, so updates land but it works offline.
-const CACHE = 'focus-protocol-v1';
+const CACHE = 'focus-protocol-v2';
 const ASSETS = ['./', './index.html', './manifest.json', './evidence.html', './icon.svg', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));

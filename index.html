@@ -134,6 +134,7 @@ footer{max-width:760px;margin:0 auto;padding:0 16px 30px;font-size:12px;color:va
     <div id="customBox" style="display:none;margin-top:10px">
       <div class="grid2">
         <div><label class="field">Focus minutes</label><input type="number" id="cFocus" min="5" max="120" value="45"></div>
+        <div><label class="field">Recall minutes (0 = none)</label><input type="number" id="cRecall" min="0" max="30" value="5"></div>
         <div><label class="field">Break minutes</label><input type="number" id="cBreak" min="1" max="60" value="10"></div>
         <div><label class="field">Cycles</label><input type="number" id="cCycles" min="1" max="12" value="3"></div>
         <div><label class="field">Prime minutes (0 = none)</label><input type="number" id="cPrime" min="0" max="15" value="3"></div>
@@ -155,7 +156,7 @@ footer{max-width:760px;margin:0 auto;padding:0 16px 30px;font-size:12px;color:va
   <div class="card">
     <h2>Presets</h2>
     <div class="row" id="presetChips"></div>
-    <p class="note">Presets set the sliders below. The protocol timer switches presets automatically per phase.</p>
+    <p class="note">Presets set the sliders below; the protocol timer switches them automatically per phase. For plain reading, silence is at least as good as any sound. Use a bed to mask speech or noise around you, and turn the tone off if it bothers you. Brown, pink and white are equivalent as far as the evidence goes.</p>
     <div class="controls" style="justify-content:flex-start">
       <button class="btn primary" id="btnFree">▶ Play sounds (no timer)</button>
     </div>
@@ -259,7 +260,7 @@ footer{max-width:760px;margin:0 auto;padding:0 16px 30px;font-size:12px;color:va
 
 <script>
 'use strict';
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.1.0';
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const clamp = (v,a,b)=>Math.min(b,Math.max(a,v));
@@ -269,74 +270,79 @@ const clamp = (v,a,b)=>Math.min(b,Math.max(a,v));
    noise.color: off|pink|brown|white|rain ; level 0..1 ; am.rate Hz (0=off) ; am.depth 0..1
 */
 const PRESETS = {
-  betaFocus:  { name:'Deep focus (β16 + pulsed pink)', hp:true,
-    tone:{type:'binaural',beat:16,carrier:240,level:0.10}, noise:{color:'pink',level:0.28,am:{rate:16,depth:0.5}} },
-  gammaRecall:{ name:'Memory work (γ40 + brown)', hp:true,
-    tone:{type:'binaural',beat:40,carrier:240,level:0.10}, noise:{color:'brown',level:0.30,am:{rate:0,depth:0}} },
-  pulsedPink: { name:'Pulsed pink only (speakers OK)', hp:false,
-    tone:{type:'off',beat:16,carrier:240,level:0}, noise:{color:'pink',level:0.32,am:{rate:16,depth:0.5}} },
-  pinkOnly:   { name:'Plain pink noise', hp:false,
-    tone:{type:'off',beat:16,carrier:240,level:0}, noise:{color:'pink',level:0.32,am:{rate:0,depth:0}} },
-  brownOnly:  { name:'Plain brown noise', hp:false,
-    tone:{type:'off',beat:16,carrier:240,level:0}, noise:{color:'brown',level:0.36,am:{rate:0,depth:0}} },
-  alphaPrime: { name:'Prime / calm (α10 + pink)', hp:true,
-    tone:{type:'binaural',beat:10,carrier:200,level:0.10}, noise:{color:'pink',level:0.20,am:{rate:0,depth:0}} },
-  rainBreak:  { name:'Break (rain + θ7)', hp:false,
-    tone:{type:'binaural',beat:7,carrier:200,level:0.06}, noise:{color:'rain',level:0.32,am:{rate:0,depth:0}} },
-  rainOnly:   { name:'Rain only', hp:false,
-    tone:{type:'off',beat:7,carrier:200,level:0}, noise:{color:'rain',level:0.34,am:{rate:0,depth:0}} },
-  monroe:     { name:'Monroe wind-down (4 Hz on 100 Hz + pink)', hp:true,
+  pulsedPink: { name:'Deep focus · pulsed pink 16 Hz (speakers OK)', hp:false,
+    tone:{type:'off',beat:16,carrier:300,level:0}, noise:{color:'pink',level:0.32,am:{rate:16,depth:0.6}} },
+  betaFocus:  { name:'Encoding · β16 binaural + pulsed pink', hp:true,
+    tone:{type:'binaural',beat:16,carrier:300,level:0.10}, noise:{color:'pink',level:0.28,am:{rate:16,depth:0.5}} },
+  gammaFocus: { name:'Attention · γ40 binaural on 340 Hz + pink', hp:true,
+    tone:{type:'binaural',beat:40,carrier:340,level:0.10}, noise:{color:'pink',level:0.28,am:{rate:0,depth:0}} },
+  pinkOnly:   { name:'Plain pink noise (masking)', hp:false,
+    tone:{type:'off',beat:16,carrier:300,level:0}, noise:{color:'pink',level:0.32,am:{rate:0,depth:0}} },
+  brownOnly:  { name:'Plain brown noise (masking)', hp:false,
+    tone:{type:'off',beat:16,carrier:300,level:0}, noise:{color:'brown',level:0.36,am:{rate:0,depth:0}} },
+  rainOnly:   { name:'Rain · prime / break', hp:false,
+    tone:{type:'off',beat:10,carrier:300,level:0}, noise:{color:'rain',level:0.34,am:{rate:0,depth:0}} },
+  alphaCalm:  { name:'Calm before exam · α10 + pink', hp:true,
+    tone:{type:'binaural',beat:10,carrier:300,level:0.10}, noise:{color:'pink',level:0.20,am:{rate:0,depth:0}} },
+  monroe:     { name:'Monroe wind-down · 4 Hz on 100 Hz + pink', hp:true,
     tone:{type:'binaural',beat:4,carrier:100,level:0.14}, noise:{color:'pink',level:0.20,am:{rate:0,depth:0}} },
+  deltaSleep: { name:'Sleep onset · δ3 on 250 Hz + pink', hp:true,
+    tone:{type:'binaural',beat:3,carrier:250,level:0.12}, noise:{color:'pink',level:0.18,am:{rate:0,depth:0}} },
   silence:    { name:'Silence', hp:false,
-    tone:{type:'off',beat:16,carrier:240,level:0}, noise:{color:'off',level:0,am:{rate:0,depth:0}} },
+    tone:{type:'off',beat:16,carrier:300,level:0}, noise:{color:'off',level:0,am:{rate:0,depth:0}} },
 };
+// Backwards-compat for presets renamed after the first release
+const PRESET_ALIASES = { gammaRecall:'gammaFocus', alphaPrime:'alphaCalm', rainBreak:'rainOnly' };
+function presetKey(k){ return PRESETS[k] ? k : (PRESET_ALIASES[k] || 'pulsedPink'); }
 
 /* ================= PROTOCOLS ================= */
 const PROTOCOLS = {
-  deep: { name:'Deep work · 3 min prime · 50/10 × 3',
-    desc:'Best for reading, problem sets, writing. Long uninterrupted blocks; the break uses rain and a slow tone to actually disengage.',
+  deep: { name:'Deep work · 3 prime · 45 focus / 5 recall / 10 break × 3',
+    desc:'Reading, problem sets, writing. Prime: rain, set the block’s goal, write 2–3 questions to answer later. Focus: one task. Recall: notes closed, answer your questions from memory. Break: first 3 min eyes closed, no phone, then move.',
     cycles:3, phases:[
-      {kind:'prime',  name:'Prime',  min:3,  preset:'alphaPrime', once:true},
-      {kind:'focus',  name:'Focus',  min:50, preset:'betaFocus'},
-      {kind:'break',  name:'Break',  min:10, preset:'rainBreak', skipLast:true},
+      {kind:'prime',  name:'Prime · set goal',  min:3,  preset:'rainOnly', once:true},
+      {kind:'focus',  name:'Focus',  min:45, preset:'pulsedPink'},
+      {kind:'recall', name:'Recall · notes closed', min:5, preset:'pinkOnly'},
+      {kind:'break',  name:'Break · eyes closed first', min:10, preset:'rainOnly', skipLast:true},
     ]},
-  pomodoro: { name:'Pomodoro · 25/5 × 4',
-    desc:'Classic short cycles. Good when motivation is low or the material is dense; the timer does the discipline for you.',
+  pomodoro: { name:'Pomodoro · 22 focus / 3 recall / 5 break × 4',
+    desc:'Short cycles for dense material or low motivation. Each block ends with 3 min of retrieval from memory. Block length does not change how much you learn; retrieval does.',
     cycles:4, phases:[
-      {kind:'focus',  name:'Focus',  min:25, preset:'betaFocus'},
-      {kind:'break',  name:'Break',  min:5,  preset:'rainOnly', skipLast:true},
+      {kind:'focus',  name:'Focus',  min:22, preset:'pulsedPink'},
+      {kind:'recall', name:'Recall · notes closed', min:3, preset:'pinkOnly'},
+      {kind:'break',  name:'Break · eyes closed first', min:5,  preset:'rainOnly', skipLast:true},
     ]},
   memorise: { name:'Memorise · 20 study / 10 recall / 5 break × 3',
-    desc:'For vocabulary, formulas, definitions. Study block, then close the book and retrieve from memory (flashcards, blank-page recall). Retrieval practice is the single best-supported learning technique.',
+    desc:'Vocabulary, formulas, definitions. Study, then close the book and retrieve (flashcards, blank-page recall). Practice testing is the single best-supported learning technique (g ≈ 0.5–0.6 vs re-reading).',
     cycles:3, phases:[
-      {kind:'focus',  name:'Study',  min:20, preset:'gammaRecall'},
-      {kind:'recall', name:'Recall (book closed)', min:10, preset:'pinkOnly'},
-      {kind:'break',  name:'Break',  min:5,  preset:'rainOnly', skipLast:true},
+      {kind:'focus',  name:'Study',  min:20, preset:'betaFocus'},
+      {kind:'recall', name:'Recall · book closed', min:10, preset:'pinkOnly'},
+      {kind:'break',  name:'Break · eyes closed first', min:5,  preset:'rainOnly', skipLast:true},
     ]},
   sprint: { name:'Exam sprint · 90 min single block',
-    desc:'One long block for past papers under exam-like conditions. Noise only, no tones, so it resembles the real exam room.',
+    desc:'Past papers under exam-like conditions. Plain noise, no tones, so it resembles the real exam room. Do this at the same time of day as the exam.',
     cycles:1, phases:[
-      {kind:'prime',  name:'Prime',  min:3,  preset:'alphaPrime', once:true},
+      {kind:'prime',  name:'Prime · set goal',  min:3,  preset:'rainOnly', once:true},
       {kind:'focus',  name:'Exam conditions', min:90, preset:'pinkOnly'},
     ]},
   winddown: { name:'Monroe wind-down · 20 min',
-    desc:'After studying, before sleep. Hemi-Sync-style low carrier with a 4 Hz beat over pink noise. Relaxation, not focus. Sleep is when the day’s learning consolidates.',
+    desc:'After studying, before sleep. Hemi-Sync-style low carrier with a 4 Hz beat over pink noise. For relaxation only: continuous pink noise during sleep has no proven memory benefit. Sleep itself is what consolidates the day’s learning.',
     cycles:1, phases:[
       {kind:'break',  name:'Wind-down', min:20, preset:'monroe'},
     ]},
-  custom: { name:'Custom', desc:'Set your own block lengths and sounds below.', cycles:3, phases:[] },
+  custom: { name:'Custom', desc:'Set your own block lengths and sounds below. Keep a recall phase: it is the part that actually improves retention.', cycles:3, phases:[] },
 };
 
 /* ================= STATE ================= */
 const DEFAULTS = {
-  protocol:'deep', preset:'betaFocus', master:0.6,
-  cfg: JSON.parse(JSON.stringify(PRESETS.betaFocus)),
-  custom:{focus:45, brk:10, cycles:3, prime:3, focusSnd:'betaFocus', breakSnd:'rainBreak'},
+  protocol:'deep', preset:'pulsedPink', master:0.6,
+  cfg: JSON.parse(JSON.stringify(PRESETS.pulsedPink)),
+  custom:{focus:45, recall:5, brk:10, cycles:3, prime:3, focusSnd:'pulsedPink', breakSnd:'rainOnly'},
   settings:{chime:true, wake:true, notify:false, fade:3},
   today:{date:'', min:0, blocks:0},
 };
 let S = load();
-function load(){ try{ const j=JSON.parse(localStorage.getItem('focusProtocol.v1')); if(j) return Object.assign(JSON.parse(JSON.stringify(DEFAULTS)), j); }catch(e){} return JSON.parse(JSON.stringify(DEFAULTS)); }
+function load(){ try{ const j=JSON.parse(localStorage.getItem('focusProtocol.v1')); if(j){ const m=Object.assign(JSON.parse(JSON.stringify(DEFAULTS)), j); if(m.preset!=='custom') m.preset=presetKey(m.preset); return m; } }catch(e){} return JSON.parse(JSON.stringify(DEFAULTS)); }
 function save(){ try{ localStorage.setItem('focusProtocol.v1', JSON.stringify(S)); }catch(e){} }
 function todayKey(){ return new Date().toISOString().slice(0,10); }
 function ensureToday(){ if(S.today.date!==todayKey()){ S.today={date:todayKey(),min:0,blocks:0}; save(); } }
@@ -520,9 +526,10 @@ function buildSchedule(key){
   const p=PROTOCOLS[key]; let phases=p.phases, cycles=p.cycles;
   if(key==='custom'){
     const c=S.custom; cycles=+c.cycles; phases=[];
-    if(+c.prime>0) phases.push({kind:'prime',name:'Prime',min:+c.prime,preset:'alphaPrime',once:true});
-    phases.push({kind:'focus',name:'Focus',min:+c.focus,preset:c.focusSnd});
-    phases.push({kind:'break',name:'Break',min:+c.brk,preset:c.breakSnd,skipLast:true});
+    if(+c.prime>0) phases.push({kind:'prime',name:'Prime · set goal',min:+c.prime,preset:'rainOnly',once:true});
+    phases.push({kind:'focus',name:'Focus',min:+c.focus,preset:presetKey(c.focusSnd)});
+    if(+c.recall>0) phases.push({kind:'recall',name:'Recall · notes closed',min:+c.recall,preset:'pinkOnly'});
+    phases.push({kind:'break',name:'Break · eyes closed first',min:+c.brk,preset:presetKey(c.breakSnd),skipLast:true});
   }
   const out=[];
   for(let cy=1;cy<=cycles;cy++) for(const ph of phases){
@@ -553,11 +560,11 @@ function nextPhase(first){
   if(timer.idx>=timer.schedule.length){ finish(); return; }
   const ph=timer.schedule[timer.idx];
   timer.endsAt=Date.now()+ph.min*60000; timer.remaining=ph.min*60000;
-  const cfg=JSON.parse(JSON.stringify(PRESETS[ph.preset]));
-  S.cfg=cfg; S.preset=ph.preset; save(); syncMixerUI();
+  const pk=presetKey(ph.preset); const cfg=JSON.parse(JSON.stringify(PRESETS[pk]));
+  S.cfg=cfg; S.preset=pk; save(); syncMixerUI();
   if(first) engine.start(cfg,S.master,S.settings.fade); else { engine.apply(cfg,S.settings.fade); if(S.settings.chime) engine.chime(ph.kind==='focus'?2:1); }
   notify(ph);
-  mediaSession(ph.name+' · '+ph.min+' min', PRESETS[ph.preset].name);
+  mediaSession(ph.name+' · '+ph.min+' min', PRESETS[pk].name);
   renderPhaseList(); renderTimer();
 }
 function tick(){
@@ -610,9 +617,9 @@ function renderTimer(){
 function renderPhaseList(){
   const key=$('#protocolSel').value; const sch=buildSchedule(key); const box=$('#phaseList'); box.innerHTML='';
   sch.forEach((p,i)=>{ const d=document.createElement('div'); d.className='phase'+(timer.running&&i===timer.idx?' now':'');
-    d.innerHTML=`<span><i class="dot ${p.kind}"></i>${p.name} <small>· cycle ${p.cycle}</small></span><span>${p.min} min <small>· ${PRESETS[p.preset].name.split(' (')[0]}</small></span>`; box.appendChild(d); });
+    d.innerHTML=`<span><i class="dot ${p.kind}"></i>${p.name} <small>· cycle ${p.cycle}</small></span><span>${p.min} min <small>· ${PRESETS[presetKey(p.preset)].name.split(' ·')[0]}</small></span>`; box.appendChild(d); });
   $('#protocolDesc').textContent=PROTOCOLS[key].desc; $('#customBox').style.display= key==='custom'?'block':'none';
-  const needHP=sch.some(p=>PRESETS[p.preset].hp); $('#hpNote').style.display=needHP?'block':'none';
+  const needHP=sch.some(p=>PRESETS[presetKey(p.preset)].hp); $('#hpNote').style.display=needHP?'block':'none';
 }
 function renderToday(){ ensureToday(); $('#todayMin').textContent=S.today.min; $('#todayBlocks').textContent=S.today.blocks; }
 function syncMixerUI(){
@@ -642,10 +649,10 @@ function init(){
   const ps=$('#protocolSel'); Object.entries(PROTOCOLS).forEach(([k,p])=>{ const o=document.createElement('option'); o.value=k; o.textContent=p.name; ps.appendChild(o); });
   ps.value=S.protocol; ps.addEventListener('change',()=>{ if(timer.running) return; S.protocol=ps.value; save(); renderPhaseList(); renderTimer(); });
   // custom
-  const c=S.custom; $('#cFocus').value=c.focus; $('#cBreak').value=c.brk; $('#cCycles').value=c.cycles; $('#cPrime').value=c.prime;
+  const c=S.custom; $('#cFocus').value=c.focus; $('#cRecall').value=c.recall??5; $('#cBreak').value=c.brk; $('#cCycles').value=c.cycles; $('#cPrime').value=c.prime;
   ['cFocusSnd','cBreakSnd'].forEach(id=>{ const sel=$('#'+id); Object.entries(PRESETS).forEach(([k,p])=>{ const o=document.createElement('option'); o.value=k; o.textContent=p.name; sel.appendChild(o); }); });
-  $('#cFocusSnd').value=c.focusSnd; $('#cBreakSnd').value=c.breakSnd;
-  $$('#customBox input,#customBox select').forEach(el=>el.addEventListener('change',()=>{ S.custom={focus:+$('#cFocus').value||45, brk:+$('#cBreak').value||10, cycles:+$('#cCycles').value||1, prime:+$('#cPrime').value||0, focusSnd:$('#cFocusSnd').value, breakSnd:$('#cBreakSnd').value}; save(); renderPhaseList(); renderTimer(); }));
+  $('#cFocusSnd').value=presetKey(c.focusSnd); $('#cBreakSnd').value=presetKey(c.breakSnd);
+  $$('#customBox input,#customBox select').forEach(el=>el.addEventListener('change',()=>{ S.custom={focus:+$('#cFocus').value||45, recall:+$('#cRecall').value||0, brk:+$('#cBreak').value||10, cycles:+$('#cCycles').value||1, prime:+$('#cPrime').value||0, focusSnd:$('#cFocusSnd').value, breakSnd:$('#cBreakSnd').value}; save(); renderPhaseList(); renderTimer(); }));
   // buttons
   $('#btnStart').addEventListener('click',startProtocol); $('#btnPause').addEventListener('click',pauseResume);
   $('#btnSkip').addEventListener('click',skip); $('#btnStop').addEventListener('click',stopProtocol); $('#btnFree').addEventListener('click',freeToggle);
