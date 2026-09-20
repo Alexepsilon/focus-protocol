@@ -260,7 +260,7 @@ footer{max-width:760px;margin:0 auto;padding:0 16px 30px;font-size:12px;color:va
 
 <script>
 'use strict';
-const APP_VERSION = '1.1.1';
+const APP_VERSION = '1.1.2';
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const clamp = (v,a,b)=>Math.min(b,Math.max(a,v));
@@ -674,7 +674,7 @@ function init(){
   // evidence
   fetch('evidence.html').then(r=>r.ok?r.text():'<p>Evidence file missing.</p>').then(h=>{ $('#evidenceBody').innerHTML='<h2>What the research says</h2>'+h; }).catch(()=>{});
   // sw
-  if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+  if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).catch(()=>{});
   renderToday(); syncMixerUI(); renderPhaseList(); renderTimer(); updateButtons();
 }
 init();
